@@ -1,0 +1,9 @@
+{
+  "name": "bie-daalt-11-parta",
+  "version": "1.0.0",
+  "description": "А хэсэг — API дизайн ба Кэш сан",
+  "scripts": {
+    "test": "node --test test/cache.test.js"
+  },
+  "engines": { "node": ">=20" }
+}
