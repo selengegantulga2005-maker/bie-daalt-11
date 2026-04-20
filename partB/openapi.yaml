@@ -1,0 +1,251 @@
+openapi: 3.0.3
+info:
+  title: Library Lending API
+  description: Номын сангийн ном зээлэх систем — F.CS311 Бие даалт 11
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Локал орчин
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    Book:
+      type: object
+      properties:
+        id:              { type: string, example: b1 }
+        isbn:            { type: string, example: 978-0-13-468599-1 }
+        title:           { type: string, example: The Pragmatic Programmer }
+        author:          { type: string, example: David Thomas }
+        totalCopies:     { type: integer, example: 3 }
+        availableCopies: { type: integer, example: 2 }
+
+    Member:
+      type: object
+      properties:
+        id:    { type: string, example: m1 }
+        name:  { type: string, example: Батбаяр }
+        email: { type: string, example: bat@example.com }
+        role:  { type: string, enum: [member, admin] }
+
+    Loan:
+      type: object
+      properties:
+        id:         { type: string, example: l1 }
+        memberId:   { type: string, example: m1 }
+        bookId:     { type: string, example: b1 }
+        borrowedAt: { type: string, format: date-time }
+        dueDate:    { type: string, format: date-time }
+        returnedAt: { type: string, format: date-time, nullable: true }
+        extended:   { type: boolean }
+
+    Reservation:
+      type: object
+      properties:
+        id:        { type: string, example: r1 }
+        memberId:  { type: string, example: m1 }
+        bookId:    { type: string, example: b1 }
+        createdAt: { type: string, format: date-time }
+        status:    { type: string, enum: [pending, cancelled] }
+
+    Problem:
+      type: object
+      properties:
+        type:   { type: string }
+        title:  { type: string }
+        status: { type: integer }
+        detail: { type: string }
+
+    PaginatedBooks:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Book' } }
+        meta:
+          type: object
+          properties:
+            total:      { type: integer }
+            page:       { type: integer }
+            limit:      { type: integer }
+            totalPages: { type: integer }
+
+paths:
+  /members/register:
+    post:
+      summary: Бүртгүүлэх
+      tags: [Members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name:  { type: string }
+                email: { type: string, format: email }
+      responses:
+        '201': { description: Бүртгэл амжилттай }
+        '409': { description: И-мэйл давхардсан, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '422': { description: Validation алдаа }
+
+  /members/login:
+    post:
+      summary: Нэвтрэх
+      tags: [Members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Токен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  userId:      { type: string }
+                  role:        { type: string }
+        '401': { description: Нэвтрэх мэдээлэл буруу }
+
+  /books:
+    get:
+      summary: Номын жагсаалт
+      tags: [Books]
+      parameters:
+        - { name: page,   in: query, schema: { type: integer, default: 1 } }
+        - { name: limit,  in: query, schema: { type: integer, default: 20 } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: sort,   in: query, schema: { type: string } }
+        - { name: order,  in: query, schema: { type: string, enum: [asc, desc] } }
+      responses:
+        '200':
+          description: Жагсаалт
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedBooks' }
+
+    post:
+      summary: Ном нэмэх (admin)
+      tags: [Books]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isbn, title, author]
+              properties:
+                isbn:        { type: string }
+                title:       { type: string }
+                author:      { type: string }
+                totalCopies: { type: integer, default: 1 }
+      responses:
+        '201': { description: Ном нэмэгдлээ }
+        '401': { description: Баталгаажуулалт шаардлагатай }
+        '403': { description: Зөвхөн admin }
+
+  /books/{id}:
+    get:
+      summary: Ном дэлгэрэнгүй
+      tags: [Books]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Ном }
+        '404': { description: Олдсонгүй, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+
+  /loans:
+    get:
+      summary: Зээлийн жагсаалт
+      tags: [Loans]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Жагсаалт }
+
+    post:
+      summary: Ном зээлэх
+      tags: [Loans]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookId]
+              properties:
+                bookId: { type: string }
+      responses:
+        '201': { description: Зээл үүсгэгдлээ }
+        '409': { description: Номын хуулбар байхгүй эсвэл зээлийн хязгаар хэтэрсэн }
+        '404': { description: Ном олдсонгүй }
+
+  /loans/{id}/return:
+    post:
+      summary: Ном буцаах
+      tags: [Loans]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Буцаалт амжилттай }
+        '409': { description: Аль хэдийн буцаагдсан }
+
+  /loans/{id}/extend:
+    post:
+      summary: Хугацаа сунгах
+      tags: [Loans]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Сунгалт амжилттай }
+        '409': { description: Аль хэдийн сунгасан эсвэл буцаагдсан }
+
+  /reservations:
+    get:
+      summary: Захиалгын жагсаалт
+      tags: [Reservations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Жагсаалт }
+
+    post:
+      summary: Захиалах
+      tags: [Reservations]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookId]
+              properties:
+                bookId: { type: string }
+      responses:
+        '201': { description: Захиалга үүсгэгдлээ }
+
+  /reservations/{id}:
+    delete:
+      summary: Захиалга цуцлах
+      tags: [Reservations]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Цуцлагдлаа }
+        '404': { description: Олдсонгүй }
