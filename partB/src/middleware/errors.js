@@ -1,11 +1,8 @@
-/**
- * Алдааны middleware — RFC 7807 Problem Details формат.
- */
-
 function problemDetails(res, status, type, title, detail, extra = {}) {
-  return res.status(status)
-    .set('Content-Type', 'application/problem+json')
-    .json({ type: `https://library.mn/problems/${type}`, title, status, detail, ...extra });
+  const body = JSON.stringify({ type: `https://library.mn/problems/${type}`, title, status, detail, ...extra });
+  res.setHeader('Content-Type', 'application/problem+json');
+  res.statusCode = status;
+  return res.end(body);
 }
 
 function notFound(req, res) {
